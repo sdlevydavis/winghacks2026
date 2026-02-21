@@ -48,7 +48,7 @@ const defaultAchievements: Achievement[] = [
 ];
 
 const defaultUserData: UserData = {
-  balance: 100,
+  balance: 10000,
   portfolio: {},
   transactions: [],
   achievements: defaultAchievements,
