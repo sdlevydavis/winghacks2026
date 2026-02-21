@@ -106,7 +106,12 @@ export function StockDetail() {
   const navigate = useNavigate();
   const location = useLocation();
   const { getStock } = useStocks();
-  const [userData, setUserData] = useState<UserData>(getUserData());
+  const [userData, setUserData] = useState<UserData | null>(null);
+
+  useEffect(() => {
+    getUserData().then(setUserData);
+  }, []);
+
   const [showBuyDialog, setShowBuyDialog] = useState(false);
   const [showSellDialog, setShowSellDialog] = useState(false);
   const [shares, setShares] = useState<string>('1');
@@ -144,8 +149,8 @@ export function StockDetail() {
 
   const stock = getStock(symbol ?? '');
   const activeStock = stock ?? onDemandStock;
-  const holding = activeStock ? userData.portfolio[activeStock.symbol] : undefined;
-  const shortPosition: ShortPosition | undefined = activeStock ? userData.shorts?.[activeStock.symbol] : undefined;
+  const holding = activeStock ? userData?.portfolio[activeStock.symbol] : undefined;
+  const shortPosition: ShortPosition | undefined = activeStock ? userData?.shorts?.[activeStock.symbol] : undefined;
 
   // Fetch quote on-demand when symbol isn't in the curated list
   useEffect(() => {
@@ -335,6 +340,12 @@ export function StockDetail() {
       </div>
     );
   }
+
+  if (!userData) return (
+    <div className="p-4 flex items-center justify-center min-h-48">
+      <p className="text-gray-500">Loading...</p>
+    </div>
+  );
 
   // P&L derived from the currently visible chart window (or zoom slice).
   // Falls back to the live quote values while chart data is still loading.

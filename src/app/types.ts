@@ -67,4 +67,5 @@ export interface UserData {
   options: OptionContract[];
   completedLessons: string[];
   claimedArticles: number[];
+  fundsAdded: number;
 }

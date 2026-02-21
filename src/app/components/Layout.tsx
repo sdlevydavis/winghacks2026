@@ -15,18 +15,19 @@ export function Layout() {
   return (
     <div className="min-h-screen bg-gray-50 pb-20">
       <header className="bg-white border-b border-gray-200 sticky top-0 z-10">
-        <div className="px-4 py-4">
+        <div className="max-w-full mx-auto px-4 sm:px-8 py-4">
           <h1 className="text-xl font-semibold text-gray-900">TradeQuest</h1>
           <p className="text-sm text-gray-500">Learn trading, have fun!</p>
         </div>
       </header>
 
-      <main className="max-w-lg mx-auto">
+      {/* max-w-full = 1280px — fills a laptop, still works on phone */}
+      <main className="max-w-full mx-auto px-0 sm:px-8">
         <Outlet />
       </main>
 
       <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-20">
-        <div className="max-w-lg mx-auto flex justify-around">
+        <div className="max-w-full mx-auto flex justify-around">
           {navItems.map(({ path, icon: Icon, label }) => {
             const isActive = location.pathname === path;
             return (

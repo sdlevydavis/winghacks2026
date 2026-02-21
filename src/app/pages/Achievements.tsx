@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { UserData } from '../types';
 import { Trophy, Lock, TrendingUp, DollarSign, PieChart, Zap, Briefcase, CheckCircle } from 'lucide-react';
 import { getUserData, saveUserData } from '../utils/storage';
 import { Card } from '../components/ui/card';
@@ -17,9 +18,14 @@ const iconMap: Record<string, any> = {
 };
 
 export function Achievements() {
-  const [userData, setUserData] = useState(getUserData());
+  const [userData, setUserData] = useState<UserData | null>(null);
+
+  useEffect(() => {
+    getUserData().then(setUserData);
+  }, []);
 
   const handleClaim = (id: string) => {
+    if (!userData) return;
     const updated = { ...userData, achievements: userData.achievements.map(a => a.id === id ? { ...a, claimed: true } : a) };
     const achievement = userData.achievements.find(a => a.id === id)!;
     updated.balance = parseFloat((userData.balance + achievement.reward).toFixed(2));
@@ -28,6 +34,12 @@ export function Achievements() {
     toast.success(`Claimed $${achievement.reward} reward for "${achievement.title}"!`);
   };
   
+  if (!userData) return (
+    <div className="p-4 flex items-center justify-center min-h-48">
+      <p className="text-gray-500">Loading...</p>
+    </div>
+  );
+
   const unlockedCount = userData.achievements.filter(a => a.unlocked).length;
   const totalCount = userData.achievements.length;
   const progressPercent = (unlockedCount / totalCount) * 100;
