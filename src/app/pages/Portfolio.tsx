@@ -1,9 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Link } from 'react-router';
 import { TrendingUp, TrendingDown, Plus, DollarSign } from 'lucide-react';
 import { getUserData, saveUserData } from '../utils/storage';
-import { getMockStocks } from '../utils/mockStocks';
-import { UserData, Stock } from '../types';
+import { useStocks } from '../context/StocksContext';
+import { UserData } from '../types';
 import { Button } from '../components/ui/button';
 import { Card } from '../components/ui/card';
 import { Tutorial } from '../components/Tutorial';
@@ -11,13 +11,13 @@ import { motion } from 'motion/react';
 
 export function Portfolio() {
   const [userData, setUserData] = useState<UserData>(getUserData());
-  const [stocks] = useState<Stock[]>(getMockStocks());
+  const { stocks, isLoading } = useStocks();
   const [showTutorial, setShowTutorial] = useState(!userData.tutorialCompleted);
 
   const portfolioStocks = Object.entries(userData.portfolio).map(([symbol, holding]) => {
     const stock = stocks.find(s => s.symbol === symbol);
     if (!stock) return null;
-    
+
     const currentValue = holding.shares * stock.currentPrice;
     const costBasis = holding.shares * holding.averagePrice;
     const profitLoss = currentValue - costBasis;
@@ -63,7 +63,9 @@ export function Portfolio() {
       {/* Balance Card */}
       <Card className="p-6 bg-gradient-to-br from-blue-600 to-blue-700 text-white">
         <div className="space-y-2">
-          <p className="text-blue-100 text-sm">Total Balance</p>
+          <p className="text-blue-100 text-sm">
+            Total Balance{isLoading ? ' (loading prices...)' : ''}
+          </p>
           <p className="text-4xl font-bold">${totalValue.toFixed(2)}</p>
           <div className="flex gap-4 text-sm">
             <div>
@@ -101,10 +103,10 @@ export function Portfolio() {
         <div className="flex items-center justify-between">
           <div>
             <p className="font-semibold text-gray-900">Need more funds?</p>
-            <p className="text-sm text-gray-600">Get $100 for $0.99</p>
+            <p className="text-sm text-gray-600">Get $1,000 for free</p>
           </div>
-          <Button 
-            size="sm" 
+          <Button
+            size="sm"
             className="bg-green-600 hover:bg-green-700"
             onClick={() => {
               const updatedData = {
