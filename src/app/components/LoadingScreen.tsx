@@ -41,15 +41,15 @@ export function LoadingScreen({ onFinished }: LoadingScreenProps) {
         <div className="absolute -top-4 -right-4 text-2xl animate-bounce" style={{ animationDelay: '0.3s' }}>💸</div>
         <div className="absolute -bottom-4 -left-4 text-2xl animate-bounce" style={{ animationDelay: '0.6s' }}>📈</div>
         <div className="absolute -bottom-4 -right-4 text-2xl animate-bounce" style={{ animationDelay: '0.9s' }}>💎</div>
-        <video
-          ref={videoRef}
-          src="/money_loading.mp4"
-          autoPlay
-          muted
-          playsInline
-          className="relative rounded-3xl shadow-2xl border-4 border-white"
-          style={{ width: '260px', height: '260px', objectFit: 'cover' }}
-        />
+<video
+  ref={videoRef}
+  src="https://drive.google.com/uc?export=download&id=1VQRIELKEacvHDmr8YpBSiBCSCoFvZ9wm"
+  autoPlay
+  muted
+  playsInline
+  className="relative rounded-3xl shadow-2xl border-4 border-white"
+  style={{ width: '260px', height: '260px', objectFit: 'cover' }}
+/>
       </div>
 
       <h1 className="text-2xl font-bold text-gray-900 mb-1 tracking-tight">TradeQuest 💅</h1>
