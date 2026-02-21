@@ -84,7 +84,7 @@ function StockTickerBar({ portfolioStocks, allStocks }: { portfolioStocks: any[]
                     {isOwned && <span className="w-2.5 h-2.5 rounded-full bg-green-500 flex-shrink-0" />}
                   </div>
                   <span className="block text-sm text-gray-600 font-medium whitespace-nowrap">
-                    ${stock.currentPrice.toFixed(2)}
+                    ${n(stock.currentPrice, 0).toFixed(2)}
                   </span>
                   <span className={`block text-sm font-bold whitespace-nowrap ${isUp ? 'text-green-600' : 'text-red-500'}`}>
                     {isUp ? '▲' : '▼'} {Math.abs(changePct)}%
@@ -108,10 +108,15 @@ export function Portfolio() {
   const { stocks, isLoading } = useStocks();
   const [showTutorial, setShowTutorial] = useState(false);
   const [onDemandStocks, setOnDemandStocks] = useState<Record<string, Stock>>({});
-
+  const n = (v: unknown, fallback = 0) =>
+  typeof v === 'number' && Number.isFinite(v) ? v : fallback; 
   useEffect(() => {
     getUserData().then(data => {
-      setUserData(data);
+    const normalized = {
+      ...data,
+      balance: typeof data.balance === 'number' ? data.balance : 0,
+    };
+      setUserData(normalized);
       setShowTutorial(!data.tutorialCompleted);
     }).catch(() => {});
   }, []);
@@ -119,6 +124,10 @@ export function Portfolio() {
   // Fetch quotes for any symbol in portfolio/shorts/options not in curated list
   useEffect(() => {
     if (!userData) return;
+    console.log('balance', userData.balance);
+    console.log('portfolio', userData.portfolio);
+    console.log('options', userData.options);
+    console.log('shorts', userData.shorts);
     const shortSymbols  = Object.keys(userData.shorts ?? {});
     const optionSymbols = (userData.options ?? []).filter(o => o.status === 'open').map(o => o.symbol);
     const allSymbols    = [...new Set([...Object.keys(userData.portfolio), ...shortSymbols, ...optionSymbols])];
@@ -248,7 +257,7 @@ export function Portfolio() {
             <div className="flex gap-4 text-sm">
               <div>
                 <p className="text-blue-100">Cash</p>
-                <p className="font-semibold">${userData.balance.toFixed(2)}</p>
+                <p className="font-semibold">${(userData.balance ?? 0).toFixed(2)}</p>
               </div>
               <div>
                 <p className="text-blue-100">Stocks</p>
@@ -310,7 +319,7 @@ export function Portfolio() {
             <p className="font-semibold text-gray-900">Need more funds?</p>
             <Button size="sm" className="bg-green-600 hover:bg-green-700" onClick={() => navigate('/earn')}>
               <Plus className="w-4 h-4 mr-1" />
-              Add Funds
+                Add Funds
             </Button>
           </div>
         </Card>
