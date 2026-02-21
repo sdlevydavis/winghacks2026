@@ -8,52 +8,62 @@ const defaultAchievements: Achievement[] = [
     title: 'First Trade',
     description: 'Complete your first stock purchase',
     icon: 'trophy',
-    unlocked: false
+    unlocked: false,
+    reward: 50
   },
   {
     id: 'profit_maker',
     title: 'Profit Maker',
     description: 'Sell a stock for a profit',
     icon: 'trending-up',
-    unlocked: false
+    unlocked: false,
+    reward: 100
   },
   {
     id: 'diversified',
     title: 'Diversified Portfolio',
     description: 'Own stocks in 3 different sectors',
     icon: 'pie-chart',
-    unlocked: false
+    unlocked: false,
+    reward: 150
   },
   {
     id: 'big_spender',
     title: 'Big Spender',
     description: 'Make a single trade worth $50 or more',
     icon: 'dollar-sign',
-    unlocked: false
+    unlocked: false,
+    reward: 100
   },
   {
     id: 'day_trader',
     title: 'Day Trader',
     description: 'Complete 10 trades',
     icon: 'zap',
-    unlocked: false
+    unlocked: false,
+    reward: 200
   },
   {
     id: 'portfolio_builder',
     title: 'Portfolio Builder',
     description: 'Own shares in 5 different stocks',
     icon: 'briefcase',
-    unlocked: false
+    unlocked: false,
+    reward: 250
   }
 ];
 
 const defaultUserData: UserData = {
-  balance: 10000,
+  balance: 1000,
   portfolio: {},
   transactions: [],
   achievements: defaultAchievements,
   tutorialCompleted: false,
-  currentTutorialStep: 0
+  currentTutorialStep: 0,
+  shorts: {},
+  options: [],
+  completedLessons: [],
+  claimedArticles: []
 };
 
 export function getUserData(): UserData {
@@ -73,7 +83,11 @@ export function getUserData(): UserData {
     return {
       ...defaultUserData,
       ...data,
-      achievements: [...(data.achievements || []), ...newAchievements]
+      achievements: [...(data.achievements || []), ...newAchievements],
+      shorts: data.shorts || {},
+      options: data.options || [],
+      completedLessons: data.completedLessons || [],
+      claimedArticles: data.claimedArticles || []
     };
   } catch (e) {
     return defaultUserData;

@@ -1,9 +1,11 @@
 import { useState } from 'react';
 import { Trophy, Lock, TrendingUp, DollarSign, PieChart, Zap, Briefcase, CheckCircle } from 'lucide-react';
-import { getUserData } from '../utils/storage';
+import { getUserData, saveUserData } from '../utils/storage';
 import { Card } from '../components/ui/card';
 import { Progress } from '../components/ui/progress';
+import { Button } from '../components/ui/button';
 import { motion } from 'motion/react';
+import { toast } from 'sonner';
 
 const iconMap: Record<string, any> = {
   trophy: Trophy,
@@ -15,7 +17,16 @@ const iconMap: Record<string, any> = {
 };
 
 export function Achievements() {
-  const [userData] = useState(getUserData());
+  const [userData, setUserData] = useState(getUserData());
+
+  const handleClaim = (id: string) => {
+    const updated = { ...userData, achievements: userData.achievements.map(a => a.id === id ? { ...a, claimed: true } : a) };
+    const achievement = userData.achievements.find(a => a.id === id)!;
+    updated.balance = parseFloat((userData.balance + achievement.reward).toFixed(2));
+    setUserData(updated);
+    saveUserData(updated);
+    toast.success(`Claimed $${achievement.reward} reward for "${achievement.title}"!`);
+  };
   
   const unlockedCount = userData.achievements.filter(a => a.unlocked).length;
   const totalCount = userData.achievements.length;
@@ -85,11 +96,33 @@ export function Achievements() {
                     <p className={`text-sm ${unlocked ? 'text-gray-600' : 'text-gray-400'}`}>
                       {achievement.description}
                     </p>
-                    {unlocked && achievement.unlockedAt && (
-                      <p className="text-xs text-gray-500 mt-2">
-                        Unlocked {new Date(achievement.unlockedAt).toLocaleDateString()}
-                      </p>
-                    )}
+                    <div className="flex items-center justify-between mt-3 gap-2">
+                      {unlocked && achievement.unlockedAt && (
+                        <p className="text-xs text-gray-500">
+                          Unlocked {new Date(achievement.unlockedAt).toLocaleDateString()}
+                        </p>
+                      )}
+                      {!unlocked && achievement.reward > 0 && (
+                        <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-gray-100 text-gray-400">
+                          🎁 +${achievement.reward} reward
+                        </span>
+                      )}
+                      {unlocked && achievement.reward > 0 && (
+                        achievement.claimed ? (
+                          <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-green-100 text-green-700 ml-auto">
+                            ✓ Claimed
+                          </span>
+                        ) : (
+                          <Button
+                            size="sm"
+                            className="ml-auto bg-amber-500 hover:bg-amber-600 text-white text-xs h-7 px-3"
+                            onClick={() => handleClaim(achievement.id)}
+                          >
+                            Claim ${achievement.reward}
+                          </Button>
+                        )
+                      )}
+                    </div>
                   </div>
                 </div>
               </Card>
