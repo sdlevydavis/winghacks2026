@@ -1,91 +1,106 @@
+import { supabase } from './supabase';
 import { UserData, Achievement } from '../types';
 
-const STORAGE_KEY = 'trade_quest_user_data';
-
 const defaultAchievements: Achievement[] = [
-  {
-    id: 'first_trade',
-    title: 'First Trade',
-    description: 'Complete your first stock purchase',
-    icon: 'trophy',
-    unlocked: false
-  },
-  {
-    id: 'profit_maker',
-    title: 'Profit Maker',
-    description: 'Sell a stock for a profit',
-    icon: 'trending-up',
-    unlocked: false
-  },
-  {
-    id: 'diversified',
-    title: 'Diversified Portfolio',
-    description: 'Own stocks in 3 different sectors',
-    icon: 'pie-chart',
-    unlocked: false
-  },
-  {
-    id: 'big_spender',
-    title: 'Big Spender',
-    description: 'Make a single trade worth $50 or more',
-    icon: 'dollar-sign',
-    unlocked: false
-  },
-  {
-    id: 'day_trader',
-    title: 'Day Trader',
-    description: 'Complete 10 trades',
-    icon: 'zap',
-    unlocked: false
-  },
-  {
-    id: 'portfolio_builder',
-    title: 'Portfolio Builder',
-    description: 'Own shares in 5 different stocks',
-    icon: 'briefcase',
-    unlocked: false
-  }
+  { id: 'first_trade', title: 'First Trade', description: 'Complete your first stock purchase', icon: 'trophy', unlocked: false },
+  { id: 'profit_maker', title: 'Profit Maker', description: 'Sell a stock for a profit', icon: 'trending-up', unlocked: false },
+  { id: 'diversified', title: 'Diversified Portfolio', description: 'Own stocks in 3 different sectors', icon: 'pie-chart', unlocked: false },
+  { id: 'big_spender', title: 'Big Spender', description: 'Make a single trade worth $50 or more', icon: 'dollar-sign', unlocked: false },
+  { id: 'day_trader', title: 'Day Trader', description: 'Complete 10 trades', icon: 'zap', unlocked: false },
+  { id: 'portfolio_builder', title: 'Portfolio Builder', description: 'Own shares in 5 different stocks', icon: 'briefcase', unlocked: false }
 ];
 
-const defaultUserData: UserData = {
-  balance: 1000,
-  portfolio: {},
-  transactions: [],
-  achievements: defaultAchievements,
-  tutorialCompleted: false,
-  currentTutorialStep: 0,
-  fundsAdded: 0
-};
+export async function getUserData(): Promise<UserData> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not logged in');
 
-export function getUserData(): UserData {
-  const stored = localStorage.getItem(STORAGE_KEY);
-  if (!stored) {
-    return defaultUserData;
-  }
-  
-  try {
-    const data = JSON.parse(stored);
-    // Merge with default achievements in case new ones were added
-    const existingAchievementIds = data.achievements?.map((a: Achievement) => a.id) || [];
-    const newAchievements = defaultAchievements.filter(
-      a => !existingAchievementIds.includes(a.id)
-    );
-    
+  const { data, error } = await supabase
+    .from('user_data')
+    .select('*')
+    .eq('id', user.id)  // ← this was missing!
+    .maybeSingle();
+
+  if (error) throw error;
+
+  // Row doesn't exist yet, create it
+  if (!data) {
+    const { data: newData, error: insertError } = await supabase
+      .from('user_data')
+      .insert({
+        id: user.id,
+        balance: 1000.00,
+        portfolio: {},
+        transactions: [],
+        achievements: defaultAchievements,
+        tutorial_completed: false,
+        current_tutorial_step: 0,
+        funds_added: 0
+      })
+      .select()
+      .single();
+
+    if (insertError) throw insertError;
+
     return {
-      ...defaultUserData,
-      ...data,
-      achievements: [...(data.achievements || []), ...newAchievements],
-      fundsAdded: data.fundsAdded || 0
+      balance: newData.balance,
+      portfolio: newData.portfolio,
+      transactions: newData.transactions,
+      achievements: defaultAchievements,
+      tutorialCompleted: newData.tutorial_completed,
+      currentTutorialStep: newData.current_tutorial_step,
+      fundsAdded: newData.funds_added ?? 0
     };
-  } catch (e) {
-    return defaultUserData;
   }
+
+  return {
+    balance: data.balance,
+    portfolio: data.portfolio,
+    transactions: data.transactions,
+    achievements: data.achievements?.length ? data.achievements : defaultAchievements,
+    tutorialCompleted: data.tutorial_completed,
+    currentTutorialStep: data.current_tutorial_step,
+    fundsAdded: data.funds_added ?? 0
+  };
 }
 
-export function saveUserData(data: UserData): void {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+export async function saveUserData(userData: UserData): Promise<void> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not logged in');
+
+  const { error } = await supabase
+    .from('user_data')
+    .update({
+      balance: userData.balance,
+      portfolio: userData.portfolio,
+      transactions: userData.transactions,
+      achievements: userData.achievements,
+      tutorial_completed: userData.tutorialCompleted,
+      current_tutorial_step: userData.currentTutorialStep,
+      funds_added: userData.fundsAdded,
+      updated_at: new Date().toISOString()
+    })
+    .eq('id', user.id);
+
+  if (error) throw error;
 }
 
-export function resetUserData(): void {
-  localStorage.removeItem(STORAGE_KEY);
+export async function resetUserData(): Promise<void> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not logged in');
+
+  const { error } = await supabase
+    .from('user_data')
+    .update({
+      balance: 1000,
+      portfolio: {},
+      transactions: [],
+      achievements: defaultAchievements,
+      tutorial_completed: false,
+      current_tutorial_step: 0,
+      funds_added: 0,
+      updated_at: new Date().toISOString()
+    })
+    .eq('id', user.id);
+
+  if (error) throw error;
 }

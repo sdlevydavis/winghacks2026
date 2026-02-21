@@ -10,44 +10,49 @@ import { Tutorial } from '../components/Tutorial';
 import { motion } from 'motion/react';
 
 export function Portfolio() {
-  const [userData, setUserData] = useState<UserData>(getUserData());
+  const [userData, setUserData] = useState<UserData | null>(null);
   const [stocks] = useState<Stock[]>(getMockStocks());
-  const [showTutorial, setShowTutorial] = useState(!userData.tutorialCompleted);
+  const [loading, setLoading] = useState(true);
+  const [showTutorial, setShowTutorial] = useState(false);
+
+  useEffect(() => {
+    getUserData().then(data => {
+      setUserData(data);
+      setShowTutorial(!data.tutorialCompleted);
+      setLoading(false);
+    }).catch(() => setLoading(false));
+  }, []);
+
+  if (loading) return (
+    <div className="p-4 flex items-center justify-center min-h-48">
+      <p className="text-gray-500">Loading...</p>
+    </div>
+  );
+
+  if (!userData) return (
+    <div className="p-4 text-center text-red-500">
+      Failed to load data. Please refresh.
+    </div>
+  );
 
   const portfolioStocks = Object.entries(userData.portfolio).map(([symbol, holding]) => {
     const stock = stocks.find(s => s.symbol === symbol);
     if (!stock) return null;
-    
     const currentValue = holding.shares * stock.currentPrice;
     const costBasis = holding.shares * holding.averagePrice;
     const profitLoss = currentValue - costBasis;
     const profitLossPercent = ((profitLoss / costBasis) * 100);
-
-    return {
-      stock,
-      holding,
-      currentValue,
-      profitLoss,
-      profitLossPercent
-    };
+    return { stock, holding, currentValue, profitLoss, profitLossPercent };
   }).filter(Boolean);
 
   const totalPortfolioValue = portfolioStocks.reduce((sum, item) => sum + (item?.currentValue || 0), 0);
   const totalValue = userData.balance + totalPortfolioValue;
 
-  const handleCompleteTutorial = () => {
-    const updatedData = {
-      ...userData,
-      tutorialCompleted: true,
-      currentTutorialStep: 6
-    };
+  const handleCompleteTutorial = async () => {
+    const updatedData = { ...userData, tutorialCompleted: true, currentTutorialStep: 6 };
     setUserData(updatedData);
-    saveUserData(updatedData);
+    await saveUserData(updatedData);
     setShowTutorial(false);
-  };
-
-  const handleSkipTutorial = () => {
-    handleCompleteTutorial();
   };
 
   return (
@@ -56,7 +61,7 @@ export function Portfolio() {
         <Tutorial
           currentStep={userData.currentTutorialStep}
           onComplete={handleCompleteTutorial}
-          onSkip={handleSkipTutorial}
+          onSkip={handleCompleteTutorial}
         />
       )}
 
@@ -96,25 +101,27 @@ export function Portfolio() {
         </Card>
       </div>
 
-      {/* Add Funds Button */}
+      {/* Add Funds */}
       <Card className="p-4 bg-gradient-to-r from-green-50 to-emerald-50 border-green-200">
         <div className="flex items-center justify-between">
           <div>
             <p className="font-semibold text-gray-900">Need more funds?</p>
-            <p className="text-sm text-gray-600">Get $100 for $0.99 {2 - userData.fundsAdded} more times</p>
+            <p className="text-sm text-gray-600">
+              Get $100 for $0.99 · {2 - userData.fundsAdded} use{2 - userData.fundsAdded !== 1 ? 's' : ''} remaining
+            </p>
           </div>
-          <Button 
-            size="sm" 
+          <Button
+            size="sm"
             className="bg-green-600 hover:bg-green-700"
             disabled={userData.fundsAdded >= 2}
-            onClick={() => {
+            onClick={async () => {
               const updatedData = {
                 ...userData,
                 balance: userData.balance + 100,
                 fundsAdded: userData.fundsAdded + 1
               };
               setUserData(updatedData);
-              saveUserData(updatedData);
+              await saveUserData(updatedData);
             }}
           >
             <Plus className="w-4 h-4 mr-1" />
@@ -128,9 +135,7 @@ export function Portfolio() {
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-lg font-semibold">Your Holdings</h2>
           <Link to="/market">
-            <Button variant="outline" size="sm">
-              Browse Market
-            </Button>
+            <Button variant="outline" size="sm">Browse Market</Button>
           </Link>
         </div>
 
@@ -153,7 +158,6 @@ export function Portfolio() {
               if (!item) return null;
               const { stock, holding, currentValue, profitLoss, profitLossPercent } = item;
               const isProfit = profitLoss >= 0;
-
               return (
                 <motion.div
                   key={stock.symbol}
@@ -170,19 +174,13 @@ export function Portfolio() {
                             <span className="text-xs text-gray-500">{holding.shares} shares</span>
                           </div>
                           <p className="text-sm text-gray-600">{stock.name}</p>
-                          <p className="text-xs text-gray-500 mt-1">
-                            Avg: ${holding.averagePrice.toFixed(2)}
-                          </p>
+                          <p className="text-xs text-gray-500 mt-1">Avg: ${holding.averagePrice.toFixed(2)}</p>
                         </div>
                         <div className="text-right">
-                          <p className="font-bold text-gray-900">
-                            ${currentValue.toFixed(2)}
-                          </p>
+                          <p className="font-bold text-gray-900">${currentValue.toFixed(2)}</p>
                           <div className={`flex items-center gap-1 text-sm ${isProfit ? 'text-green-600' : 'text-red-600'}`}>
                             {isProfit ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
-                            <span>
-                              {isProfit ? '+' : ''}${profitLoss.toFixed(2)}
-                            </span>
+                            <span>{isProfit ? '+' : ''}${profitLoss.toFixed(2)}</span>
                           </div>
                           <p className={`text-xs ${isProfit ? 'text-green-600' : 'text-red-600'}`}>
                             {isProfit ? '+' : ''}{profitLossPercent.toFixed(2)}%
