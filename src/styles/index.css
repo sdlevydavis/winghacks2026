@@ -1,0 +1,25 @@
+@import './fonts.css';
+@import './tailwind.css';
+@import './theme.css';
+
+/* Mobile optimizations */
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  overscroll-behavior: none;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Smooth scroll for better UX */
+html {
+  scroll-behavior: smooth;
+}
+
+/* Hide scrollbar on mobile for cleaner look */
+::-webkit-scrollbar {
+  width: 0px;
+  background: transparent;
+}
