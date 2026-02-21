@@ -49,9 +49,13 @@ app.get("/make-server-0a8aeca7/market-data", async (c) => {
 
 app.post("/make-server-0a8aeca7/init-game", async (c) => {
   try {
+    const body = await c.req.json().catch(() => ({}));
+    const startingBalance = body.startingBalance || 1000;
+    // AI always starts with 10000 for a fair challenge regardless of user balance
+    const AI_STARTING_BALANCE = 10000;
     const initialState = {
-      user: { cash: 100000, portfolio: {}, totalValue: 100000, trades: [] },
-      ai: { cash: 100000, portfolio: {}, totalValue: 100000, trades: [] },
+      user: { cash: startingBalance, portfolio: {}, totalValue: startingBalance, trades: [] },
+      ai: { cash: AI_STARTING_BALANCE, portfolio: {}, totalValue: AI_STARTING_BALANCE, trades: [] },
       scores: { userWins: 0, aiWins: 0, userPoints: 0 },
       lastAITradeTime: Date.now(),
     };
@@ -108,11 +112,22 @@ app.post("/make-server-0a8aeca7/ai-trade", async (c) => {
     const geminiApiKey = Deno.env.get("GEMINI_API_KEY");
     if (!geminiApiKey) return c.json({ error: "Gemini API key not configured" }, 500);
 
-    const prices = Object.entries(marketData).map(([s, d]: any) => `${s}:${d.c}`).join(",");
-    const cash = state.ai.cash.toFixed(0);
-    const holdings = Object.entries(state.ai.portfolio).map(([s, n]) => `${s}:${n}`).join(",") || "none";
+    const prices = Object.entries(marketData).map(([s, d]: any) => `${s}: $${d.c}`).join(", ");
+    const cash = state.ai.cash.toFixed(2);
+    const holdings = Object.entries(state.ai.portfolio).map(([s, n]) => `${s}: ${n} shares`).join(", ") || "none";
 
     const url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent";
+
+    const prompt = `You are an aggressive stock trading AI with $${cash} cash.
+Current holdings: ${holdings}
+Current prices: ${prices}
+
+You MUST make a trade (buy or sell). Do NOT hold. Pick the best opportunity.
+- If you have cash, BUY shares in a stock you don't own yet or want more of.
+- If you have holdings, consider selling if you can profit or rebalance.
+- Buy as many shares as makes sense (at least 1, up to 20% of cash value).
+
+Respond ONLY with JSON: {"action":"buy","symbol":"AAPL","shares":5,"reasoning":"brief reason"}`;
 
     const response = await fetch(url, {
       method: "POST",
@@ -121,26 +136,12 @@ app.post("/make-server-0a8aeca7/ai-trade", async (c) => {
         "x-goog-api-key": geminiApiKey,
       },
       body: JSON.stringify({
-        system_instruction: {
-          parts: [{ text: "You are a stock trading bot. Respond only with valid JSON." }]
-        },
         contents: [{
-          parts: [{ text: `Cash:${cash} Holdings:${holdings} Prices:${prices}\nMake one trade decision.` }]
+          parts: [{ text: prompt }]
         }],
         generationConfig: {
-          temperature: 0.1,
-          maxOutputTokens: 100,
-          responseMimeType: "application/json",
-          responseSchema: {
-            type: "OBJECT",
-            properties: {
-              action: { type: "STRING", enum: ["buy", "sell", "hold"] },
-              symbol: { type: "STRING" },
-              shares: { type: "NUMBER" },
-              reasoning: { type: "STRING" }
-            },
-            required: ["action", "symbol", "shares", "reasoning"]
-          }
+          temperature: 0.7,
+          maxOutputTokens: 150,
         },
       }),
     });
@@ -152,45 +153,112 @@ app.post("/make-server-0a8aeca7/ai-trade", async (c) => {
     }
 
     const data = await response.json();
+    console.log("RAW GEMINI RESPONSE:", JSON.stringify(data));
+
+    // Extract text from response — handle both direct text and function call formats
     const aiResponseText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+    console.log("GEMINI TEXT:", aiResponseText);
 
-    console.log("RAW GEMINI RESPONSE:", JSON.stringify(aiResponseText));
+    let aiDecision: any = null;
 
-    if (!aiResponseText) {
-      return c.json({ error: "Invalid response from Gemini" }, 500);
+    if (aiResponseText) {
+      // Strip markdown code fences if present
+      const cleaned = aiResponseText.replace(/```json\n?|\n?```/g, "").trim();
+      try {
+        aiDecision = JSON.parse(cleaned);
+      } catch (parseError) {
+        console.error("Failed to parse Gemini response:", cleaned);
+      }
     }
 
-    let aiDecision;
-    try {
-      aiDecision = JSON.parse(aiResponseText);
-    } catch (parseError) {
-      console.error("Failed to parse Gemini response:", aiResponseText);
-      // Rule-based fallback: buy 10% of cash in a random stock
+    // Rule-based fallback: always make a real trade
+    if (!aiDecision || aiDecision.action === "hold" || !aiDecision.symbol || !(aiDecision.shares > 0)) {
+      console.log("Using rule-based fallback for AI trade");
       const symbolList = Object.keys(marketData);
-      const randomSymbol = symbolList[Math.floor(Math.random() * symbolList.length)];
-      const price = marketData[randomSymbol]?.c || 1;
-      const affordableShares = Math.floor((state.ai.cash * 0.1) / price);
-      aiDecision = affordableShares > 0
-        ? { action: "buy", symbol: randomSymbol, shares: affordableShares, reasoning: "diversify" }
-        : { action: "hold", symbol: null, shares: 0, reasoning: "low funds" };
+
+      // Prefer symbols the AI doesn't own yet
+      const unowned = symbolList.filter(s => !state.ai.portfolio[s]);
+      const targetSymbol = unowned.length > 0
+        ? unowned[Math.floor(Math.random() * unowned.length)]
+        : symbolList[Math.floor(Math.random() * symbolList.length)];
+
+      const price = marketData[targetSymbol]?.c || 1;
+      // Buy up to 15% of available cash
+      const affordableShares = Math.max(1, Math.floor((state.ai.cash * 0.15) / price));
+
+      if (state.ai.cash >= price) {
+        aiDecision = {
+          action: "buy",
+          symbol: targetSymbol,
+          shares: affordableShares,
+          reasoning: "Diversifying portfolio with available cash"
+        };
+      } else if (Object.keys(state.ai.portfolio).length > 0) {
+        // Sell something if no cash
+        const ownedSymbol = Object.keys(state.ai.portfolio)[0];
+        const ownedShares = state.ai.portfolio[ownedSymbol];
+        aiDecision = {
+          action: "sell",
+          symbol: ownedSymbol,
+          shares: Math.max(1, Math.floor(ownedShares / 2)),
+          reasoning: "Raising cash by selling partial position"
+        };
+      } else {
+        aiDecision = { action: "hold", symbol: null, shares: 0, reasoning: "Insufficient funds" };
+      }
     }
 
     // Execute the AI trade
     if (aiDecision.action === "buy" && aiDecision.symbol && aiDecision.shares > 0) {
       const price = marketData[aiDecision.symbol]?.c || 0;
       const totalCost = aiDecision.shares * price;
-      if (state.ai.cash >= totalCost) {
+      if (state.ai.cash >= totalCost && price > 0) {
         state.ai.cash -= totalCost;
         state.ai.portfolio[aiDecision.symbol] = (state.ai.portfolio[aiDecision.symbol] || 0) + aiDecision.shares;
-        state.ai.trades.push({ symbol: aiDecision.symbol, action: "buy", shares: aiDecision.shares, price, timestamp: Date.now(), reasoning: aiDecision.reasoning });
+        state.ai.trades.push({
+          symbol: aiDecision.symbol,
+          action: "buy",
+          shares: aiDecision.shares,
+          price,
+          timestamp: Date.now(),
+          reasoning: aiDecision.reasoning
+        });
+      } else {
+        console.log(`AI buy failed: cash=${state.ai.cash}, cost=${totalCost}`);
+        // Adjust shares to what AI can afford
+        const affordableShares = Math.floor(state.ai.cash / price);
+        if (affordableShares > 0) {
+          const adjustedCost = affordableShares * price;
+          state.ai.cash -= adjustedCost;
+          state.ai.portfolio[aiDecision.symbol] = (state.ai.portfolio[aiDecision.symbol] || 0) + affordableShares;
+          aiDecision.shares = affordableShares;
+          state.ai.trades.push({
+            symbol: aiDecision.symbol,
+            action: "buy",
+            shares: affordableShares,
+            price,
+            timestamp: Date.now(),
+            reasoning: aiDecision.reasoning + " (adjusted for available cash)"
+          });
+        }
       }
     } else if (aiDecision.action === "sell" && aiDecision.symbol && aiDecision.shares > 0) {
-      if ((state.ai.portfolio[aiDecision.symbol] || 0) >= aiDecision.shares) {
+      const availableShares = state.ai.portfolio[aiDecision.symbol] || 0;
+      const sharesToSell = Math.min(aiDecision.shares, availableShares);
+      if (sharesToSell > 0) {
         const price = marketData[aiDecision.symbol]?.c || 0;
-        state.ai.cash += aiDecision.shares * price;
-        state.ai.portfolio[aiDecision.symbol] -= aiDecision.shares;
+        state.ai.cash += sharesToSell * price;
+        state.ai.portfolio[aiDecision.symbol] -= sharesToSell;
         if (state.ai.portfolio[aiDecision.symbol] === 0) delete state.ai.portfolio[aiDecision.symbol];
-        state.ai.trades.push({ symbol: aiDecision.symbol, action: "sell", shares: aiDecision.shares, price, timestamp: Date.now(), reasoning: aiDecision.reasoning });
+        aiDecision.shares = sharesToSell;
+        state.ai.trades.push({
+          symbol: aiDecision.symbol,
+          action: "sell",
+          shares: sharesToSell,
+          price,
+          timestamp: Date.now(),
+          reasoning: aiDecision.reasoning
+        });
       }
     }
 

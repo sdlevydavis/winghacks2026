@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { projectId, publicAnonKey } from "/utils/supabase/info";
 import { TradingInterface } from "../components/TradingInterface";
 import { toast } from "sonner";
-
+import { getUserData } from "../utils/storage";
 const serverUrl = `https://${projectId}.supabase.co/functions/v1/make-server-0a8aeca7`;
 
 export function TradeWrapper() {
@@ -10,20 +10,38 @@ export function TradeWrapper() {
   const [marketData, setMarketData] = useState<any>({});
   const [loading, setLoading] = useState(true);
 
-  // Init game
   useEffect(() => {
     const initGame = async () => {
       try {
+        const userData = await getUserData();
+        const realBalance = userData.balance;
+        const realPortfolio: any = {};
+        Object.entries(userData.portfolio).forEach(([symbol, h]: any) => {
+          realPortfolio[symbol] = h.shares;
+        });
+
         const existingResponse = await fetch(`${serverUrl}/game-state`, {
           headers: { Authorization: `Bearer ${publicAnonKey}` },
         });
         const existingData = await existingResponse.json();
+
         if (existingData.success) {
-          setGameState(existingData.state);
+          // Patch user side with real data, keep AI state as-is
+          const patched = {
+            ...existingData.state,
+            user: {
+              ...existingData.state.user,
+              cash: realBalance,
+              portfolio: realPortfolio,
+            },
+          };
+          setGameState(patched);
         } else {
+          // Fresh game — AI starts with the same balance as the user
           const response = await fetch(`${serverUrl}/init-game`, {
             method: "POST",
-            headers: { Authorization: `Bearer ${publicAnonKey}` },
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${publicAnonKey}` },
+            body: JSON.stringify({ startingBalance: realBalance }),
           });
           const data = await response.json();
           if (data.success) setGameState(data.state);
@@ -37,7 +55,6 @@ export function TradeWrapper() {
     initGame();
   }, []);
 
-  // Fetch market data
   const fetchMarketData = async () => {
     try {
       const response = await fetch(`${serverUrl}/market-data`, {
@@ -91,7 +108,9 @@ export function TradeWrapper() {
         setGameState(data.state);
         return data.decision;
       } else {
+        console.error(data.error);
         toast.error(data.error || "AI trade failed");
+        return null;
       }
     } catch {
       toast.error("Failed to get AI decision");
@@ -123,7 +142,7 @@ export function TradeWrapper() {
   );
 
   return (
-    <div className="bg-gradient-to-br from-slate-900 to-slate-800 min-h-screen">
+    <div className="min-h-screen">
       <TradingInterface
         gameState={gameState}
         marketData={marketData}
