@@ -41,4 +41,5 @@ export interface UserData {
   achievements: Achievement[];
   tutorialCompleted: boolean;
   currentTutorialStep: number;
+  fundsAdded: number; // max 2
 }

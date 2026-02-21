@@ -48,12 +48,13 @@ const defaultAchievements: Achievement[] = [
 ];
 
 const defaultUserData: UserData = {
-  balance: 100,
+  balance: 1000,
   portfolio: {},
   transactions: [],
   achievements: defaultAchievements,
   tutorialCompleted: false,
-  currentTutorialStep: 0
+  currentTutorialStep: 0,
+  fundsAdded: 0
 };
 
 export function getUserData(): UserData {
@@ -73,7 +74,8 @@ export function getUserData(): UserData {
     return {
       ...defaultUserData,
       ...data,
-      achievements: [...(data.achievements || []), ...newAchievements]
+      achievements: [...(data.achievements || []), ...newAchievements],
+      fundsAdded: data.fundsAdded || 0
     };
   } catch (e) {
     return defaultUserData;

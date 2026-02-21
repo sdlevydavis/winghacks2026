@@ -101,15 +101,17 @@ export function Portfolio() {
         <div className="flex items-center justify-between">
           <div>
             <p className="font-semibold text-gray-900">Need more funds?</p>
-            <p className="text-sm text-gray-600">Get $100 for $0.99</p>
+            <p className="text-sm text-gray-600">Get $100 for $0.99 {2 - userData.fundsAdded} more times</p>
           </div>
           <Button 
             size="sm" 
             className="bg-green-600 hover:bg-green-700"
+            disabled={userData.fundsAdded >= 2}
             onClick={() => {
               const updatedData = {
                 ...userData,
-                balance: userData.balance + 100
+                balance: userData.balance + 100,
+                fundsAdded: userData.fundsAdded + 1
               };
               setUserData(updatedData);
               saveUserData(updatedData);
