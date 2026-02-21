@@ -23,6 +23,7 @@ export interface OhlcPoint {
   high: number;
   low: number;
   close: number;
+  ts?: number; // unix seconds — used to fetch finer-resolution data on zoom
 }
 
 export async function fetchQuote(symbol: string): Promise<FinnhubQuote> {
@@ -153,9 +154,11 @@ export async function fetchCompanyNews(symbol: string): Promise<NewsArticle[]> {
   return articles;
 }
 
+export type CandleFormatHint = '1D' | '1M' | '1YR' | '10Y' | 'zoom_daily' | 'zoom_hourly';
+
 export function candlesToOhlcData(
   candles: FinnhubCandles,
-  timeRange: '1D' | '1M' | '1YR' | '10Y' = '1M',
+  timeRange: CandleFormatHint = '1M',
 ): OhlcPoint[] {
   if (candles.s !== 'ok' || !candles.c?.length) return [];
   return candles.c.map((close, i) => {
@@ -163,19 +166,36 @@ export function candlesToOhlcData(
     let time: string;
     if (timeRange === '1D') {
       time = date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
+    } else if (timeRange === 'zoom_hourly') {
+      // Hourly zoom: include date so labels stay unique across days
+      time = date.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false });
     } else if (timeRange === '10Y') {
       // Weekly candles span many years — include year so labels stay unique per month
       time = date.toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
     } else {
-      // 1M: ~30 daily points, 1YR: ~252 daily points — day-level labels are unique
+      // 1M, 1YR, zoom_daily — day-level labels are unique enough
       time = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
     }
     return {
       time,
+      ts:    candles.t[i],
       open:  parseFloat((candles.o?.[i] ?? close).toFixed(2)),
       high:  parseFloat((candles.h?.[i] ?? close).toFixed(2)),
       low:   parseFloat((candles.l?.[i] ?? close).toFixed(2)),
       close: parseFloat(close.toFixed(2)),
     };
   });
+}
+
+// Fetch candles for an arbitrary time window at a given resolution (used by zoom drill-down)
+export async function fetchCandlesForRange(
+  symbol: string,
+  from: number,       // unix seconds
+  to: number,         // unix seconds
+  resolution: '1' | '5' | '15' | '30' | '60' | 'D',
+): Promise<FinnhubCandles> {
+  const url = `${BASE_URL}/stock/candle?symbol=${encodeURIComponent(symbol)}&resolution=${resolution}&from=${from}&to=${to}&token=${API_KEY}`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`Candles fetch failed: ${res.status}`);
+  return res.json();
 }

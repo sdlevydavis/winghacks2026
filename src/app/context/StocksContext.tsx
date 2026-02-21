@@ -20,6 +20,23 @@ interface StocksContextValue {
 
 const StocksContext = createContext<StocksContextValue | null>(null);
 
+// Cache quotes in localStorage for 5 minutes to avoid re-hitting Finnhub on refresh
+const QUOTE_CACHE_KEY = 'fh_quotes_v1';
+const QUOTE_CACHE_TTL = 5 * 60 * 1000;
+
+interface CachedQuote { quote: FinnhubQuote; ts: number; }
+
+function readQuoteCache(): Record<string, CachedQuote> {
+  try {
+    const raw = localStorage.getItem(QUOTE_CACHE_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch { return {}; }
+}
+
+function writeQuoteCache(cache: Record<string, CachedQuote>) {
+  try { localStorage.setItem(QUOTE_CACHE_KEY, JSON.stringify(cache)); } catch {}
+}
+
 function mergeQuote(stock: Stock, quote: FinnhubQuote): Stock {
   // When markets are closed Finnhub returns c=0 and null for d/dp — fall back to previous close
   const price = quote.c > 0 ? quote.c : quote.pc;
@@ -46,37 +63,62 @@ export function StocksProvider({ children }: { children: ReactNode }) {
     let cancelled = false;
 
     async function loadQuotes() {
-      // Fetch sequentially with a small gap to avoid 429s from parallel bursts
-      const results: PromiseSettledResult<FinnhubQuote>[] = [];
-      for (const symbol of TRACKED_SYMBOLS) {
+      const cache = readQuoteCache();
+      const now = Date.now();
+
+      // Apply fresh cached values immediately so refresh never shows $0
+      const freshSymbols = TRACKED_SYMBOLS.filter(sym => {
+        const entry = cache[sym];
+        return entry && now - entry.ts < QUOTE_CACHE_TTL;
+      });
+      if (freshSymbols.length > 0) {
+        setStocks(prev => prev.map(stock => {
+          const entry = cache[stock.symbol];
+          return entry && now - entry.ts < QUOTE_CACHE_TTL
+            ? mergeQuote(stock, entry.quote)
+            : stock;
+        }));
+      }
+
+      // Only fetch symbols whose cache is stale or missing
+      const toFetch = TRACKED_SYMBOLS.filter(sym => {
+        const entry = cache[sym];
+        return !entry || now - entry.ts >= QUOTE_CACHE_TTL;
+      });
+
+      if (toFetch.length === 0) {
+        setIsLoading(false);
+        return;
+      }
+
+      const updatedCache = { ...cache };
+      let failCount = 0;
+
+      for (const symbol of toFetch) {
         if (cancelled) return;
         const result = await fetchQuote(symbol)
           .then(q => ({ status: 'fulfilled' as const, value: q }))
           .catch(e => ({ status: 'rejected' as const, reason: e }));
-        results.push(result);
-        // Small gap between requests
-        await new Promise(r => setTimeout(r, 120));
-      }
 
-      if (cancelled) return;
-
-      let failCount = 0;
-      setStocks(prev =>
-        prev.map((stock, i) => {
-          const result = results[i];
-          if (result.status === 'fulfilled') {
-            return mergeQuote(stock, result.value);
-          }
+        if (result.status === 'fulfilled') {
+          updatedCache[symbol] = { quote: result.value, ts: Date.now() };
+          setStocks(prev => prev.map(s =>
+            s.symbol === symbol ? mergeQuote(s, result.value) : s
+          ));
+        } else {
           failCount++;
-          return stock;
-        })
-      );
-
-      // Only surface an error when the majority of quotes failed — a single blip is normal
-      if (failCount > TRACKED_SYMBOLS.length / 2) {
-        setError('Some stock prices could not be loaded. Check your API key.');
+        }
+        // Small gap between requests (cache prevents re-fetching on refresh)
+        await new Promise(r => setTimeout(r, 300));
       }
-      setIsLoading(false);
+
+      if (!cancelled) {
+        writeQuoteCache(updatedCache);
+        if (failCount > toFetch.length / 2) {
+          setError('Some stock prices could not be loaded. Check your API key.');
+        }
+        setIsLoading(false);
+      }
     }
 
     loadQuotes();
