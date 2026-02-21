@@ -10,6 +10,23 @@ import { Card } from '../components/ui/card';
 import { Input } from '../components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../components/ui/dialog';
 import { toast } from 'sonner';
+import { projectId, publicAnonKey } from '/utils/supabase/info';
+
+const serverUrl = `https://${projectId}.supabase.co/functions/v1/make-server-0a8aeca7`;
+
+// Sync a trade to the game server so it appears in the Trade vs AI page
+const syncTradeToGame = async (symbol: string, action: 'buy' | 'sell', shares: number, price: number) => {
+  try {
+    await fetch(`${serverUrl}/user-trade`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${publicAnonKey}` },
+      body: JSON.stringify({ symbol, action, shares, price }),
+    });
+  } catch {
+    // Non-critical — don't block the trade if game server is unavailable
+    console.warn('Failed to sync trade to game server');
+  }
+};
 
 export function StockDetail() {
   const { symbol } = useParams<{ symbol: string }>();
@@ -103,6 +120,8 @@ export function StockDetail() {
     const newAchievements = checkAchievements(updatedData);
     setUserData(updatedData);
     await saveUserData(updatedData);
+    // Sync to game server so it shows in Trade vs AI
+    await syncTradeToGame(stock.symbol, 'buy', sharesNum, stock.currentPrice);
     setShowBuyDialog(false);
     setShares('1');
     toast.success(`Bought ${sharesNum} shares of ${stock.symbol}!`);
@@ -129,6 +148,8 @@ export function StockDetail() {
     const newAchievements = checkAchievements(updatedData);
     setUserData(updatedData);
     await saveUserData(updatedData);
+    // Sync to game server so it shows in Trade vs AI
+    await syncTradeToGame(stock.symbol, 'sell', sharesNum, stock.currentPrice);
     setShowSellDialog(false);
     setShares('1');
     const profit = (stock.currentPrice - holding.averagePrice) * sharesNum;

@@ -20,7 +20,7 @@ export function Login() {
   return (
     <div className="min-h-screen flex items-center justify-center p-4">
       <div className="w-full max-w-sm space-y-4">
-        <h1 className="text-2xl font-bold text-center">TradeQuest</h1>
+        <h1 className="text-2xl font-bold text-center">Trade.it</h1>
         <input
           className="w-full border rounded p-2"
           placeholder="Email"
