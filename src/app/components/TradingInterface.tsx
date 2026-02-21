@@ -225,8 +225,7 @@ export function TradingInterface({
         <div>
           <div className="flex items-center gap-2">
             <h2 className="text-2xl sm:text-3xl font-bold text-gray-800">Trade Against</h2>
-            <img src="/src/gemini.png" alt="Gemini" className="w-32 object-contain -my-4" />
-          </div>
+          <img src="/gemini.png" alt="Gemini" className="w-32 object-contain -my-4" />          </div>
         </div>
 
         {/* Action buttons */}
