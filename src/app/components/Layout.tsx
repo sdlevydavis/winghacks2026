@@ -1,15 +1,16 @@
 import { Outlet, Link, useLocation } from 'react-router';
-import { Home, TrendingUp, Trophy, Settings } from 'lucide-react';
+import { Home, TrendingUp, Trophy, Settings, Brain } from 'lucide-react';
 
 export function Layout() {
   const location = useLocation();
-  
-  const navItems = [
-    { path: '/', icon: Home, label: 'Portfolio' },
-    { path: '/market', icon: TrendingUp, label: 'Market' },
-    { path: '/achievements', icon: Trophy, label: 'Achievements' },
-    { path: '/settings', icon: Settings, label: 'Settings' }
-  ];
+
+const navItems = [
+  { path: '/', icon: Home, label: 'Portfolio' },
+  { path: '/market', icon: TrendingUp, label: 'Market' },
+  { path: '/trade', icon: Brain, label: 'AI Trade' },
+  { path: '/achievements', icon: Trophy, label: 'Achievements' },
+  { path: '/settings', icon: Settings, label: 'Settings' },
+];
 
   return (
     <div className="min-h-screen bg-gray-50 pb-20">
