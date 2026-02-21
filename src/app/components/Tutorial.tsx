@@ -12,7 +12,7 @@ interface TutorialStep {
 const tutorialSteps: TutorialStep[] = [
   {
     title: 'Welcome to TradeQuest! 🎮',
-    description: "You're starting with $100 in virtual money. Your goal is to learn how trading works while growing your portfolio. No real money is at risk!"
+    description: "You're starting with $1,000 in virtual money. Your goal is to learn how trading works while growing your portfolio. No real money is at risk!"
   },
   {
     title: 'Understanding Stocks 📈',

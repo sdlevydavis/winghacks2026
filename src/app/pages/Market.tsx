@@ -7,9 +7,12 @@ import { Card } from '../components/ui/card';
 import { Input } from '../components/ui/input';
 import { motion } from 'motion/react';
 
+type AssetTypeFilter = 'All' | 'Stock' | 'ETF';
+
 export function Market() {
   const { stocks, isLoading, error } = useStocks();
   const [searchQuery, setSearchQuery] = useState('');
+  const [filterType, setFilterType] = useState<AssetTypeFilter>('All');
   const [filterSector, setFilterSector] = useState<string>('All');
 
   const [symbolList, setSymbolList] = useState<FinnhubSymbol[]>([]);
@@ -27,21 +30,43 @@ export function Market() {
       .finally(() => setSymbolListLoading(false));
   }, [isSearching, symbolList.length]);
 
-  const sectors = ['All', ...Array.from(new Set(stocks.map(s => s.sector)))];
+  // Changing asset type resets the sector drill-down
+  const handleTypeFilter = (type: AssetTypeFilter) => {
+    setFilterType(type);
+    setFilterSector('All');
+  };
+
+  // Stocks passing the asset-type filter — sectors are derived from this subset
+  const typeFilteredStocks = stocks.filter(s =>
+    filterType === 'All' || s.assetType === filterType
+  );
+  const sectors = ['All', ...Array.from(new Set(typeFilteredStocks.map(s => s.sector)))];
 
   // Full-universe search results (when user is typing)
+  // Sort: exact symbol match → symbol starts with query → symbol contains query → description match
   const searchResults: FinnhubSymbol[] = isSearching
     ? symbolList
         .filter(s =>
           s.symbol.toLowerCase().includes(searchQuery.toLowerCase()) ||
           s.description.toLowerCase().includes(searchQuery.toLowerCase())
         )
+        .sort((a, b) => {
+          const q = searchQuery.toLowerCase();
+          const aSymL = a.symbol.toLowerCase();
+          const bSymL = b.symbol.toLowerCase();
+          const rank = (sym: string) => {
+            if (sym === q) return 0;
+            if (sym.startsWith(q)) return 1;
+            return 2;
+          };
+          return rank(aSymL) - rank(bSymL) || aSymL.localeCompare(bSymL);
+        })
         .slice(0, 25)
     : [];
 
-  // Curated stocks filtered by sector (shown when search is empty)
+  // Curated stocks filtered by type then sector (shown when search is empty)
   const filteredStocks = !isSearching
-    ? stocks.filter(s => filterSector === 'All' || s.sector === filterSector)
+    ? typeFilteredStocks.filter(s => filterSector === 'All' || s.sector === filterSector)
     : [];
 
   return (
@@ -63,22 +88,42 @@ export function Market() {
         />
       </div>
 
-      {/* Sector filter — only when not searching */}
+      {/* Asset-type filter + sector filter — only when not searching */}
       {!isSearching && (
-        <div className="flex gap-2 overflow-x-auto pb-2 -mx-4 px-4">
-          {sectors.map(sector => (
-            <button
-              key={sector}
-              onClick={() => setFilterSector(sector)}
-              className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${
-                filterSector === sector
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
-            >
-              {sector}
-            </button>
-          ))}
+        <div className="space-y-2">
+          {/* Type: All / Stocks / ETFs */}
+          <div className="flex gap-2">
+            {(['All', 'Stock', 'ETF'] as AssetTypeFilter[]).map(t => (
+              <button
+                key={t}
+                onClick={() => handleTypeFilter(t)}
+                className={`px-4 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${
+                  filterType === t
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                {t === 'All' ? 'All Types' : t === 'Stock' ? 'Stocks' : 'ETFs'}
+              </button>
+            ))}
+          </div>
+
+          {/* Sector: derived from whichever type is active */}
+          <div className="flex gap-2 overflow-x-auto pb-2 -mx-4 px-4">
+            {sectors.map(sector => (
+              <button
+                key={sector}
+                onClick={() => setFilterSector(sector)}
+                className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${
+                  filterSector === sector
+                    ? 'bg-gray-800 text-white'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                {sector}
+              </button>
+            ))}
+          </div>
         </div>
       )}
 

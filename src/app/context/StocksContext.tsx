@@ -21,11 +21,13 @@ interface StocksContextValue {
 const StocksContext = createContext<StocksContextValue | null>(null);
 
 function mergeQuote(stock: Stock, quote: FinnhubQuote): Stock {
+  // When markets are closed Finnhub returns c=0 and null for d/dp — fall back to previous close
+  const price = quote.c > 0 ? quote.c : quote.pc;
   return {
     ...stock,
-    currentPrice: quote.c,
-    changeAmount: quote.d,
-    changePercent: quote.dp,
+    currentPrice: parseFloat(price.toFixed(2)),
+    changeAmount: parseFloat((quote.d ?? 0).toFixed(2)),
+    changePercent: parseFloat((quote.dp ?? 0).toFixed(2)),
   };
 }
 
@@ -39,30 +41,39 @@ export function StocksProvider({ children }: { children: ReactNode }) {
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Fetch all quotes on mount
+  // Fetch all quotes on mount — stagger requests to stay within Finnhub's free-tier rate limit
   useEffect(() => {
     let cancelled = false;
 
     async function loadQuotes() {
-      const results = await Promise.allSettled(
-        TRACKED_SYMBOLS.map(symbol => fetchQuote(symbol))
-      );
+      // Fetch sequentially with a small gap to avoid 429s from parallel bursts
+      const results: PromiseSettledResult<FinnhubQuote>[] = [];
+      for (const symbol of TRACKED_SYMBOLS) {
+        if (cancelled) return;
+        const result = await fetchQuote(symbol)
+          .then(q => ({ status: 'fulfilled' as const, value: q }))
+          .catch(e => ({ status: 'rejected' as const, reason: e }));
+        results.push(result);
+        // Small gap between requests
+        await new Promise(r => setTimeout(r, 120));
+      }
 
       if (cancelled) return;
 
-      let anyFailed = false;
+      let failCount = 0;
       setStocks(prev =>
         prev.map((stock, i) => {
           const result = results[i];
           if (result.status === 'fulfilled') {
             return mergeQuote(stock, result.value);
           }
-          anyFailed = true;
+          failCount++;
           return stock;
         })
       );
 
-      if (anyFailed) {
+      // Only surface an error when the majority of quotes failed — a single blip is normal
+      if (failCount > TRACKED_SYMBOLS.length / 2) {
         setError('Some stock prices could not be loaded. Check your API key.');
       }
       setIsLoading(false);
