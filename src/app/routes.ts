@@ -6,6 +6,7 @@ import { StockDetail } from './pages/StockDetail';
 import { Achievements } from './pages/Achievements';
 import { Settings } from './pages/Settings';
 import { NotFound } from './pages/NotFound';
+import { TradeWrapper } from './pages/TradeWrapper'; // 👈 add this
 
 export const router = createBrowserRouter([
   {
@@ -14,6 +15,7 @@ export const router = createBrowserRouter([
     children: [
       { index: true, Component: Portfolio },
       { path: 'market', Component: Market },
+      { path: 'trade', Component: TradeWrapper }, // 👈 add this
       { path: 'stock/:symbol', Component: StockDetail },
       { path: 'achievements', Component: Achievements },
       { path: 'settings', Component: Settings },
