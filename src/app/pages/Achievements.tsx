@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Trophy, Lock, TrendingUp, DollarSign, PieChart, Zap, Briefcase, CheckCircle } from 'lucide-react';
 import { getUserData } from '../utils/storage';
 import { Card } from '../components/ui/card';
 import { Progress } from '../components/ui/progress';
 import { motion } from 'motion/react';
+import { UserData } from '../types';
 
 const iconMap: Record<string, any> = {
   trophy: Trophy,
@@ -15,8 +16,18 @@ const iconMap: Record<string, any> = {
 };
 
 export function Achievements() {
-  const [userData] = useState(getUserData());
-  
+  const [userData, setUserData] = useState<UserData | null>(null);
+
+  useEffect(() => {
+    getUserData().then(setUserData);
+  }, []);
+
+  if (!userData) return (
+    <div className="p-4 flex items-center justify-center min-h-48">
+      <p className="text-gray-500">Loading...</p>
+    </div>
+  );
+
   const unlockedCount = userData.achievements.filter(a => a.unlocked).length;
   const totalCount = userData.achievements.length;
   const progressPercent = (unlockedCount / totalCount) * 100;
@@ -27,8 +38,6 @@ export function Achievements() {
         <h2 className="text-2xl font-bold mb-2">Achievements</h2>
         <p className="text-gray-600">Track your trading journey</p>
       </div>
-
-      {/* Progress Card */}
       <Card className="p-6 bg-gradient-to-br from-purple-600 to-purple-700 text-white">
         <div className="flex items-center gap-3 mb-4">
           <div className="p-3 bg-white/20 rounded-full">
@@ -36,23 +45,16 @@ export function Achievements() {
           </div>
           <div className="flex-1">
             <p className="text-purple-100 text-sm">Progress</p>
-            <p className="text-2xl font-bold">
-              {unlockedCount} / {totalCount} Unlocked
-            </p>
+            <p className="text-2xl font-bold">{unlockedCount} / {totalCount} Unlocked</p>
           </div>
         </div>
         <Progress value={progressPercent} className="h-2 bg-purple-800" />
-        <p className="text-purple-100 text-sm mt-2">
-          {progressPercent.toFixed(0)}% Complete
-        </p>
+        <p className="text-purple-100 text-sm mt-2">{progressPercent.toFixed(0)}% Complete</p>
       </Card>
-
-      {/* Achievement List */}
       <div className="space-y-3">
         {userData.achievements.map((achievement, index) => {
           const Icon = iconMap[achievement.icon] || Trophy;
           const unlocked = achievement.unlocked;
-
           return (
             <motion.div
               key={achievement.id}
@@ -62,25 +64,15 @@ export function Achievements() {
             >
               <Card className={`p-4 ${unlocked ? 'bg-gradient-to-r from-yellow-50 to-amber-50 border-yellow-200' : 'bg-gray-50'}`}>
                 <div className="flex items-start gap-4">
-                  <div className={`p-3 rounded-full ${
-                    unlocked 
-                      ? 'bg-yellow-400 text-yellow-900' 
-                      : 'bg-gray-200 text-gray-400'
-                  }`}>
-                    {unlocked ? (
-                      <Icon className="w-6 h-6" />
-                    ) : (
-                      <Lock className="w-6 h-6" />
-                    )}
+                  <div className={`p-3 rounded-full ${unlocked ? 'bg-yellow-400 text-yellow-900' : 'bg-gray-200 text-gray-400'}`}>
+                    {unlocked ? <Icon className="w-6 h-6" /> : <Lock className="w-6 h-6" />}
                   </div>
                   <div className="flex-1">
                     <div className="flex items-center gap-2 mb-1">
                       <h3 className={`font-semibold ${unlocked ? 'text-gray-900' : 'text-gray-500'}`}>
                         {achievement.title}
                       </h3>
-                      {unlocked && (
-                        <CheckCircle className="w-4 h-4 text-green-600" />
-                      )}
+                      {unlocked && <CheckCircle className="w-4 h-4 text-green-600" />}
                     </div>
                     <p className={`text-sm ${unlocked ? 'text-gray-600' : 'text-gray-400'}`}>
                       {achievement.description}
@@ -97,8 +89,6 @@ export function Achievements() {
           );
         })}
       </div>
-
-      {/* Tips Card */}
       <Card className="p-4 bg-blue-50 border-blue-200">
         <h3 className="font-semibold mb-2 flex items-center gap-2">
           <TrendingUp className="w-5 h-5 text-blue-600" />

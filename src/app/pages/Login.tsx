@@ -12,7 +12,11 @@ export function Login() {
     const { error } = isRegister
       ? await supabase.auth.signUp({ email, password })
       : await supabase.auth.signInWithPassword({ email, password });
+<<<<<<< HEAD
 
+=======
+    
+>>>>>>> main
     if (error) setError(error.message);
   };
 
