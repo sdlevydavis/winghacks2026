@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react';
 import { Trophy, Lock, TrendingUp, DollarSign, PieChart, Zap, Briefcase, CheckCircle } from 'lucide-react';
-import { getUserData } from '../utils/storage';
+import { getUserData, saveUserData } from '../utils/storage';
 import { Card } from '../components/ui/card';
 import { Progress } from '../components/ui/progress';
+import { Button } from '../components/ui/button';
 import { motion } from 'motion/react';
 import { UserData } from '../types';
+import { toast } from 'sonner';
 
 const iconMap: Record<string, any> = {
   trophy: Trophy,
@@ -28,9 +30,24 @@ export function Achievements() {
     </div>
   );
 
+  const handleClaim = async (id: string) => {
+    const achievement = userData.achievements.find(a => a.id === id);
+    if (!achievement) return;
+    const updated: UserData = {
+      ...userData,
+      balance: parseFloat((userData.balance + achievement.reward).toFixed(2)),
+      achievements: userData.achievements.map(a =>
+        a.id === id ? { ...a, claimed: true } : a
+      ),
+    };
+    setUserData(updated);
+    await saveUserData(updated);
+    toast.success(`Claimed $${achievement.reward} reward for "${achievement.title}"!`);
+  };
+
   const unlockedCount = userData.achievements.filter(a => a.unlocked).length;
   const totalCount = userData.achievements.length;
-  const progressPercent = (unlockedCount / totalCount) * 100;
+  const progressPercent = totalCount > 0 ? (unlockedCount / totalCount) * 100 : 0;
 
   return (
     <div className="p-4 space-y-4">
@@ -38,6 +55,7 @@ export function Achievements() {
         <h2 className="text-2xl font-bold mb-2">Achievements</h2>
         <p className="text-gray-600">Track your trading journey</p>
       </div>
+
       <Card className="p-6 bg-gradient-to-br from-purple-600 to-purple-700 text-white">
         <div className="flex items-center gap-3 mb-4">
           <div className="p-3 bg-white/20 rounded-full">
@@ -51,6 +69,7 @@ export function Achievements() {
         <Progress value={progressPercent} className="h-2 bg-purple-800" />
         <p className="text-purple-100 text-sm mt-2">{progressPercent.toFixed(0)}% Complete</p>
       </Card>
+
       <div className="space-y-3">
         {userData.achievements.map((achievement, index) => {
           const Icon = iconMap[achievement.icon] || Trophy;
@@ -77,11 +96,33 @@ export function Achievements() {
                     <p className={`text-sm ${unlocked ? 'text-gray-600' : 'text-gray-400'}`}>
                       {achievement.description}
                     </p>
-                    {unlocked && achievement.unlockedAt && (
-                      <p className="text-xs text-gray-500 mt-2">
-                        Unlocked {new Date(achievement.unlockedAt).toLocaleDateString()}
-                      </p>
-                    )}
+                    <div className="flex items-center justify-between mt-3 gap-2">
+                      {unlocked && achievement.unlockedAt && (
+                        <p className="text-xs text-gray-500">
+                          Unlocked {new Date(achievement.unlockedAt).toLocaleDateString()}
+                        </p>
+                      )}
+                      {!unlocked && achievement.reward > 0 && (
+                        <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-gray-100 text-gray-400">
+                          🎁 +${achievement.reward} reward
+                        </span>
+                      )}
+                      {unlocked && achievement.reward > 0 && (
+                        achievement.claimed ? (
+                          <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-green-100 text-green-700 ml-auto">
+                            ✓ Claimed
+                          </span>
+                        ) : (
+                          <Button
+                            size="sm"
+                            className="ml-auto bg-amber-500 hover:bg-amber-600 text-white text-xs h-7 px-3"
+                            onClick={() => handleClaim(achievement.id)}
+                          >
+                            Claim ${achievement.reward}
+                          </Button>
+                        )
+                      )}
+                    </div>
                   </div>
                 </div>
               </Card>
@@ -89,6 +130,7 @@ export function Achievements() {
           );
         })}
       </div>
+
       <Card className="p-4 bg-blue-50 border-blue-200">
         <h3 className="font-semibold mb-2 flex items-center gap-2">
           <TrendingUp className="w-5 h-5 text-blue-600" />

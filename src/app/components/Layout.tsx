@@ -1,17 +1,17 @@
 import { Outlet, Link, useLocation } from 'react-router';
-import { Home, TrendingUp, Trophy, Settings, Brain } from 'lucide-react';
+import { Home, TrendingUp, Trophy, Settings, Brain, Coins } from 'lucide-react';
 
 export function Layout() {
   const location = useLocation();
 
 const navItems = [
-  { path: '/', icon: Home, label: 'Portfolio' },
-  { path: '/market', icon: TrendingUp, label: 'Market' },
-  { path: '/trade', icon: Brain, label: 'AI Trade' },
-  { path: '/achievements', icon: Trophy, label: 'Achievements' },
-  { path: '/settings', icon: Settings, label: 'Settings' },
-];
-
+    { path: '/', icon: Home, label: 'Portfolio' },
+    { path: '/market', icon: TrendingUp, label: 'Market' },
+    { path: '/trade', icon: Brain, label: 'AI Trade' },
+    { path: '/earn', icon: Coins, label: 'Earn' },
+    { path: '/achievements', icon: Trophy, label: 'Achievements' },
+    { path: '/settings', icon: Settings, label: 'Settings' },
+  ];
   return (
     <div className="min-h-screen bg-gray-50 pb-20">
       <header className="bg-white border-b border-gray-200 sticky top-0 z-10">
@@ -21,7 +21,6 @@ const navItems = [
         </div>
       </header>
 
-      {/* max-w-full = 1280px — fills a laptop, still works on phone */}
       <main className="max-w-full mx-auto px-0 sm:px-8">
         <Outlet />
       </main>

@@ -7,6 +7,7 @@ export interface Stock {
   historicalData: { time: string; price: number }[];
   description: string;
   sector: string;
+  assetType: 'Stock' | 'ETF';
 }
 
 export interface Portfolio {
@@ -32,6 +33,27 @@ export interface Achievement {
   icon: string;
   unlocked: boolean;
   unlockedAt?: number;
+  reward: number;   // cash credited to balance when claimed
+  claimed?: boolean; // true once the player has claimed the reward
+}
+
+export interface ShortPosition {
+  shares: number;
+  borrowPrice: number;   // price per share when shorted
+  collateral: number;    // total collateral locked (= borrowPrice * shares)
+  timestamp: number;
+}
+
+export interface OptionContract {
+  id: string;
+  symbol: string;
+  type: 'call' | 'put';
+  strikePrice: number;
+  premium: number;       // total premium paid
+  contracts: number;     // number of shares represented
+  expiresAt: number;     // ms timestamp
+  status: 'open' | 'exercised' | 'expired';
+  purchasedAt: number;
 }
 
 export interface UserData {
@@ -42,4 +64,8 @@ export interface UserData {
   tutorialCompleted: boolean;
   currentTutorialStep: number;
   fundsAdded: number; // max 2
+  shorts: { [symbol: string]: ShortPosition };
+  options: OptionContract[];
+  completedLessons: string[];
+  claimedArticles: number[];
 }

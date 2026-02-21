@@ -1,6 +1,10 @@
 import { useState } from "react";
 import { Brain, User, Trophy, RefreshCw, X } from "lucide-react";
 
+/* helper — safely call toFixed on anything that might be null/undefined */
+const fmt = (n: number | null | undefined, decimals = 2): string =>
+  (n ?? 0).toFixed(decimals);
+
 interface TradingInterfaceProps {
   gameState: any;
   marketData: any;
@@ -29,9 +33,9 @@ export function TradingInterface({
   );
 
   const calculatePortfolioValue = (player: any) => {
-    let total = player.cash;
-    for (const [symbol, shares] of Object.entries(player.portfolio)) {
-      total += (shares as number) * (marketData[symbol]?.c || 0);
+    let total = player.cash ?? 0;
+    for (const [symbol, shares] of Object.entries(player.portfolio ?? {})) {
+      total += (shares as number) * ((marketData?.[symbol]?.c) ?? 0);
     }
     return total;
   };
@@ -41,21 +45,42 @@ export function TradingInterface({
 
   const handleAITrade = async () => {
     setAiLoading(true);
-    const decision = await onAITrade();
-    setAiLoading(false);
-    setAiModal({ show: true, decision: decision || { action: "hold", reasoning: "No trade made" } });
+    try {
+      const decision = await onAITrade();
+      setAiModal({ show: true, decision: decision || { action: "hold", reasoning: "No trade made" } });
+    } catch (error: any) {
+      const is429 = error?.status === 429 || JSON.stringify(error).includes('"code": 429');
+      setAiModal({
+        show: true,
+        decision: {
+          action: "hold",
+          reasoning: is429
+            ? "AI is resting — free tier limit reached. Try again in a few minutes."
+            : "AI encountered an error. Please try again.",
+        },
+      });
+    } finally {
+      setAiLoading(false);
+    }
   };
 
   const handleCalculateScores = async () => {
     setScoreLoading(true);
-    const result = await onCalculateScores();
-    setScoreLoading(false);
-    if (result) {
-      setScoreModal({ show: true, ...result });
-    } else {
+    try {
+      const result = await onCalculateScores();
+      if (result) {
+        setScoreModal({ show: true, ...result });
+      } else {
+        const uv = calculatePortfolioValue(gameState.user);
+        const av = calculatePortfolioValue(gameState.ai);
+        setScoreModal({ show: true, userValue: uv, aiValue: av, winner: uv > av ? "user" : av > uv ? "ai" : "tie" });
+      }
+    } catch {
       const uv = calculatePortfolioValue(gameState.user);
       const av = calculatePortfolioValue(gameState.ai);
       setScoreModal({ show: true, userValue: uv, aiValue: av, winner: uv > av ? "user" : av > uv ? "ai" : "tie" });
+    } finally {
+      setScoreLoading(false);
     }
   };
 
@@ -99,8 +124,8 @@ export function TradingInterface({
               {aiModal.decision?.shares > 0 && (
                 <p className="text-gray-700 text-lg mb-2">
                   <span className="font-semibold">{aiModal.decision.shares}</span> shares
-                  {marketData[aiModal.decision.symbol]?.c && (
-                    <span className="text-gray-500 text-sm ml-2">@ ${marketData[aiModal.decision.symbol].c.toFixed(2)} each</span>
+                  {marketData?.[aiModal.decision.symbol]?.c && (
+                    <span className="text-gray-500 text-sm ml-2">@ ${fmt(marketData[aiModal.decision.symbol].c)} each</span>
                   )}
                 </p>
               )}
@@ -111,11 +136,11 @@ export function TradingInterface({
             <div className="grid grid-cols-2 gap-3 mb-5">
               <div className="bg-green-50 border border-green-200 rounded-lg p-3 text-center">
                 <p className="text-green-700 text-xs mb-1">Your Portfolio</p>
-                <p className="text-gray-900 font-bold">${userValue.toFixed(0)}</p>
+                <p className="text-gray-900 font-bold">${fmt(userValue, 0)}</p>
               </div>
               <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 text-center">
                 <p className="text-gray-500 text-xs mb-1">AI Portfolio</p>
-                <p className="text-gray-900 font-bold">${aiValue.toFixed(0)}</p>
+                <p className="text-gray-900 font-bold">${fmt(aiValue, 0)}</p>
               </div>
             </div>
             <button onClick={() => setAiModal(null)} className="w-full bg-green-700 hover:bg-green-800 text-white py-3 rounded-xl font-semibold transition">
@@ -147,31 +172,31 @@ export function TradingInterface({
             <div className="grid grid-cols-2 gap-3 mb-5">
               <div className={`rounded-xl p-4 text-center border-2 ${scoreModal.winner === "user" ? "bg-green-50 border-green-400" : "bg-gray-50 border-gray-200"}`}>
                 <p className="text-gray-500 text-xs mb-1 flex items-center justify-center gap-1"><User className="size-3" /> You</p>
-                <p className="text-gray-900 font-black text-2xl">${scoreModal.userValue.toFixed(2)}</p>
+                <p className="text-gray-900 font-black text-2xl">${fmt(scoreModal.userValue)}</p>
                 {scoreModal.winner === "user" && <p className="text-green-600 text-xs mt-1">▲ Winner</p>}
               </div>
               <div className={`rounded-xl p-4 text-center border-2 ${scoreModal.winner === "ai" ? "bg-green-50 border-green-400" : "bg-gray-50 border-gray-200"}`}>
                 <p className="text-gray-500 text-xs mb-1 flex items-center justify-center gap-1"><Brain className="size-3" /> AI</p>
-                <p className="text-gray-900 font-black text-2xl">${scoreModal.aiValue.toFixed(2)}</p>
+                <p className="text-gray-900 font-black text-2xl">${fmt(scoreModal.aiValue)}</p>
                 {scoreModal.winner === "ai" && <p className="text-green-600 text-xs mt-1">▲ Winner</p>}
               </div>
             </div>
             <div className="bg-gray-50 rounded-lg p-3 text-center mb-5">
               <p className="text-gray-400 text-xs mb-1">Difference</p>
-              <p className="text-gray-900 font-bold text-lg">${Math.abs(scoreModal.userValue - scoreModal.aiValue).toFixed(2)}</p>
+              <p className="text-gray-900 font-bold text-lg">${fmt(Math.abs((scoreModal.userValue ?? 0) - (scoreModal.aiValue ?? 0)))}</p>
             </div>
             <div className="grid grid-cols-3 gap-2 mb-5 text-center">
               <div className="bg-gray-50 border border-gray-200 rounded-lg p-2">
                 <p className="text-gray-400 text-xs">Your Wins</p>
-                <p className="text-gray-900 font-bold">{gameState.scores.userWins}</p>
+                <p className="text-gray-900 font-bold">{gameState.scores?.userWins ?? 0}</p>
               </div>
               <div className="bg-gray-50 border border-gray-200 rounded-lg p-2">
                 <p className="text-gray-400 text-xs">AI Wins</p>
-                <p className="text-gray-900 font-bold">{gameState.scores.aiWins}</p>
+                <p className="text-gray-900 font-bold">{gameState.scores?.aiWins ?? 0}</p>
               </div>
               <div className="bg-green-50 border border-green-200 rounded-lg p-2">
                 <p className="text-green-700 text-xs">Points</p>
-                <p className="text-green-800 font-bold">{gameState.scores.userPoints}</p>
+                <p className="text-green-800 font-bold">{gameState.scores?.userPoints ?? 0}</p>
               </div>
             </div>
             <button onClick={() => setScoreModal(null)} className="w-full bg-green-700 hover:bg-green-800 text-white py-3 rounded-xl font-semibold transition">
@@ -197,13 +222,14 @@ export function TradingInterface({
       {/* Main content */}
       <div className="px-4 sm:px-6 lg:px-10 py-6 space-y-6">
 
-<div>
-  <div className="flex items-center gap-2">
-    <h2 className="text-2xl sm:text-3xl font-bold text-gray-800">Trade Against</h2>
-    <img src="/src/gemini.png" alt="Gemini" className="w-32 object-contain -my-4" />
-  </div>
-</div>
-{/* Action buttons */}
+        <div>
+          <div className="flex items-center gap-2">
+            <h2 className="text-2xl sm:text-3xl font-bold text-gray-800">Trade Against</h2>
+            <img src="/src/gemini.png" alt="Gemini" className="w-32 object-contain -my-4" />
+          </div>
+        </div>
+
+        {/* Action buttons */}
         <div className="flex gap-3 flex-wrap">
           <button onClick={onRefreshMarket} className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg flex items-center gap-2 transition text-sm font-medium">
             <RefreshCw className="size-4" /> Refresh
@@ -216,24 +242,24 @@ export function TradingInterface({
           </button>
         </div>
 
-        {/* Battle overview card — matches Portfolio balance card */}
-        <div className="w-full overflow-hidden bg-gradient-to-br from-green-800 to-green-400 text-white rounded-2xl shadow-lg p-6 sm:p-8">
+        {/* Battle overview card */}
+        <div className="w-full overflow-hidden bg-gradient-to-br from-green-800 to-white text-white rounded-2xl shadow-lg p-6 sm:p-8">
           <p className="text-green-100 text-sm mb-4">Battle Overview</p>
           <div className="flex gap-8 sm:gap-16 flex-wrap">
             <div>
               <p className="text-green-100 text-sm">Your Portfolio</p>
-              <p className="font-bold text-2xl sm:text-3xl">${userValue.toFixed(2)}</p>
-              <p className="text-green-200 text-xs mt-1">Cash: ${gameState.user.cash.toFixed(2)}</p>
+              <p className="font-bold text-2xl sm:text-3xl">${fmt(userValue)}</p>
+              <p className="text-green-200 text-xs mt-1">Cash: ${fmt(gameState.user?.cash)}</p>
             </div>
             <div>
               <p className="text-green-100 text-sm">AI Portfolio</p>
-              <p className="font-bold text-2xl sm:text-3xl">${aiValue.toFixed(2)}</p>
-              <p className="text-green-200 text-xs mt-1">Cash: ${gameState.ai.cash.toFixed(2)}</p>
+              <p className="font-bold text-2xl sm:text-3xl">${fmt(aiValue)}</p>
+              <p className="text-green-200 text-xs mt-1">Cash: ${fmt(gameState.ai?.cash)}</p>
             </div>
             <div>
               <p className="text-green-100 text-sm">Your Score</p>
-              <p className="font-bold text-2xl sm:text-3xl">{gameState.scores.userPoints} pts</p>
-              <p className="text-green-200 text-xs mt-1">Wins: {gameState.scores.userWins} | AI: {gameState.scores.aiWins}</p>
+              <p className="font-bold text-2xl sm:text-3xl">{gameState.scores?.userPoints ?? 0} pts</p>
+              <p className="text-green-200 text-xs mt-1">Wins: {gameState.scores?.userWins ?? 0} | AI: {gameState.scores?.aiWins ?? 0}</p>
             </div>
           </div>
         </div>
@@ -241,7 +267,7 @@ export function TradingInterface({
         {/* AI Recent Trades */}
         <div className="space-y-3">
           <h3 className="text-xl font-bold text-gray-800">AI Recent Trades</h3>
-          {gameState.ai.trades.length === 0 ? (
+          {(gameState.ai?.trades ?? []).length === 0 ? (
             <div className="bg-white rounded-2xl shadow p-10 text-center">
               <Brain className="w-12 h-12 mx-auto text-gray-300 mb-3" />
               <p className="text-gray-500 font-medium">No AI trades yet</p>
@@ -249,15 +275,15 @@ export function TradingInterface({
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {gameState.ai.trades.slice(-6).reverse().map((trade: any, idx: number) => (
+              {(gameState.ai.trades ?? []).slice(-6).reverse().map((trade: any, idx: number) => (
                 <div key={idx} className="bg-white rounded-xl shadow p-4">
                   <div className="flex justify-between items-center mb-1">
                     <span className={`font-bold text-sm ${trade.action === "buy" ? "text-green-600" : "text-red-600"}`}>
-                      {trade.action.toUpperCase()}
+                      {trade.action?.toUpperCase()}
                     </span>
                     <span className="text-gray-700 font-semibold">{trade.symbol}</span>
                   </div>
-                  <p className="text-gray-500 text-sm">{trade.shares} shares @ ${trade.price?.toFixed(2)}</p>
+                  <p className="text-gray-500 text-sm">{trade.shares} shares @ ${fmt(trade.price)}</p>
                   {trade.reasoning && <p className="text-xs text-gray-400 mt-1 italic">{trade.reasoning}</p>}
                 </div>
               ))}
@@ -268,7 +294,7 @@ export function TradingInterface({
         {/* Your Recent Trades */}
         <div className="space-y-3 pb-6">
           <h3 className="text-xl font-bold text-gray-800">Your Recent Trades</h3>
-          {gameState.user.trades.length === 0 ? (
+          {(gameState.user?.trades ?? []).length === 0 ? (
             <div className="bg-white rounded-2xl shadow p-10 text-center">
               <User className="w-12 h-12 mx-auto text-gray-300 mb-3" />
               <p className="text-gray-500 font-medium">No trades yet</p>
@@ -276,15 +302,15 @@ export function TradingInterface({
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {gameState.user.trades.slice(-6).reverse().map((trade: any, idx: number) => (
+              {(gameState.user.trades ?? []).slice(-6).reverse().map((trade: any, idx: number) => (
                 <div key={idx} className="bg-white rounded-xl shadow p-4">
                   <div className="flex justify-between items-center mb-1">
                     <span className={`font-bold text-sm ${trade.action === "buy" ? "text-green-600" : "text-red-600"}`}>
-                      {trade.action.toUpperCase()}
+                      {trade.action?.toUpperCase()}
                     </span>
                     <span className="text-gray-700 font-semibold">{trade.symbol}</span>
                   </div>
-                  <p className="text-gray-500 text-sm">{trade.shares} shares @ ${trade.price?.toFixed(2)}</p>
+                  <p className="text-gray-500 text-sm">{trade.shares} shares @ ${fmt(trade.price)}</p>
                 </div>
               ))}
             </div>

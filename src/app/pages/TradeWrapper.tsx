@@ -95,46 +95,73 @@ export function TradeWrapper() {
     }
   };
 
-  const handleAITrade = async () => {
-    if (Object.keys(marketData).length === 0) { toast.error("Market data not available"); return; }
-    try {
-      const response = await fetch(`${serverUrl}/ai-trade`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${publicAnonKey}` },
-        body: JSON.stringify({ marketData }),
+const handleAITrade = async () => {   // ← make sure 'async' is here
+  if (Object.keys(marketData).length === 0) { toast.error("Market data not available"); return; }
+  try {
+    const response = await fetch(`${serverUrl}/ai-trade`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${publicAnonKey}` },
+      body: JSON.stringify({ marketData }),
+    });
+    const data = await response.json();
+    if (data.success) {
+      const userData = await getUserData();   // ← this needs 'async' on the outer function
+      const realPortfolio: any = {};
+      Object.entries(userData.portfolio).forEach(([symbol, h]: any) => {
+        realPortfolio[symbol] = h.shares;
       });
-      const data = await response.json();
-      if (data.success) {
-        setGameState(data.state);
-        return data.decision;
-      } else {
-        console.error(data.error);
-        toast.error(data.error || "AI trade failed");
-        return null;
-      }
-    } catch {
-      toast.error("Failed to get AI decision");
-    }
-  };
-
-  const handleCalculateScores = async () => {
-    if (Object.keys(marketData).length === 0) { toast.error("Market data not available"); return; }
-    try {
-      const response = await fetch(`${serverUrl}/calculate-scores`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${publicAnonKey}` },
-        body: JSON.stringify({ marketData }),
+      setGameState({
+        ...data.state,
+        user: { ...data.state.user, cash: userData.balance, portfolio: realPortfolio },
       });
-      const data = await response.json();
-      if (data.success) {
-        setGameState(data.state);
-        return { userValue: data.userValue, aiValue: data.aiValue, winner: data.winner };
-      }
-    } catch {
-      toast.error("Failed to calculate scores");
+      return data.decision;
+    } else {
+      toast.error(data.error || "AI trade failed");
+      return null;
     }
-  };
+  } catch {
+    toast.error("Failed to get AI decision");
+  }
+};
+const handleCalculateScores = async () => {
+  if (Object.keys(marketData).length === 0) { toast.error("Market data not available"); return; }
+  try {
+    const response = await fetch(`${serverUrl}/calculate-scores`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${publicAnonKey}` },
+      body: JSON.stringify({ marketData }),
+    });
+    const data = await response.json();
+    if (data.success) {
+      // Re-patch with real local user data, same as initGame does
+      const userData = await getUserData();
+      const realPortfolio: any = {};
+      Object.entries(userData.portfolio).forEach(([symbol, h]: any) => {
+        realPortfolio[symbol] = h.shares;
+      });
 
+      // Recalculate real user value locally instead of trusting server
+      const realUserValue = userData.balance + Object.entries(userData.portfolio).reduce((sum, [symbol, h]: any) => {
+        return sum + h.shares * (marketData[symbol]?.c || 0);
+      }, 0);
+
+      const patched = {
+        ...data.state,
+        user: {
+          ...data.state.user,
+          cash: userData.balance,
+          portfolio: realPortfolio,
+        },
+      };
+      setGameState(patched);
+
+      const winner = realUserValue > data.aiValue ? "user" : data.aiValue > realUserValue ? "ai" : "tie";
+      return { userValue: realUserValue, aiValue: data.aiValue, winner };
+    }
+  } catch {
+    toast.error("Failed to calculate scores");
+  }
+};
   if (loading) return (
     <div className="flex items-center justify-center min-h-48">
       <p className="text-gray-500">Loading game...</p>

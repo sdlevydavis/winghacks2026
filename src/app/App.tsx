@@ -7,6 +7,7 @@ import { Session } from '@supabase/supabase-js';
 import { Login } from './pages/Login';
 import { projectId, publicAnonKey } from '/utils/supabase/info';
 import { toast } from 'sonner';
+import { StocksProvider } from './context/StocksContext';
 
 export default function App() {
   const [session, setSession] = useState<Session | null>(null);
@@ -86,9 +87,9 @@ export default function App() {
   );
 
   return (
-    <>
+    <StocksProvider>
       <RouterProvider router={router} />
       <Toaster position="top-center" />
-    </>
+    </StocksProvider>
   );
 }

@@ -26,7 +26,7 @@ export function Settings() {
   const handleReset = async () => {
     try {
       await resetUserData();
-      toast.success('Account reset! Starting fresh with $1000');
+      toast.success('Account reset! Starting fresh with $1,000');
       setShowResetDialog(false);
       const fresh = await getUserData();
       setUserData(fresh);
@@ -59,10 +59,9 @@ export function Settings() {
 
   if (!userData) return null;
 
-  const totalPortfolioValue = Object.values(userData.portfolio).reduce(
-    (sum, holding) => sum + holding.shares * holding.averagePrice, 0
-  );
-
+const totalPortfolioValue = Object.values(userData.portfolio).reduce(
+  (sum, holding) => sum + (holding.shares ?? 0) * (holding.averagePrice ?? 0), 0
+);
   return (
     <div className="p-4 space-y-4">
       <div>
@@ -156,7 +155,7 @@ export function Settings() {
           </Button>
         </div>
         <p className="text-xs text-gray-500 mt-2">
-          Reset will delete all your data and start fresh with $1000
+          Reset will delete all your data and start fresh with $1,000
         </p>
       </Card>
 
@@ -167,7 +166,7 @@ export function Settings() {
             <DialogTitle>Reset Account?</DialogTitle>
             <DialogDescription>
               This will permanently delete all your portfolio data, transaction history, and achievements.
-              You'll start fresh with $1000.
+              You'll start fresh with $1,000.
             </DialogDescription>
           </DialogHeader>
           <div className="flex gap-3">
